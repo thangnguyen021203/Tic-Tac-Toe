@@ -1,4 +1,5 @@
 import numpy as np
+import random
 
 class TicTacToe:
     def __init__(self):
@@ -12,7 +13,12 @@ class TicTacToe:
         self.max_q_value_to_choose = None
         self.q_table_player_O = None
         self.q_table_player_X = None
-        
+        self.exploration_rate =  1
+    
+    def update_exploration_rate(self):
+        if self.exploration_rate >= 0.3:
+            self.exploration_rate *= 0.98
+    
     def make_environment(self):
         self.board = np.array([['-','-','-'],
                               ['-','-','-'],
@@ -122,13 +128,27 @@ class TicTacToe:
         return self.max_position_to_choose
         
     def play(self, player):
-        if player == 'O':
-            action = self.chooseAction(self.current_state, self.q_table_player_O)
-            current_q_value = self.q_table_player_O[self.current_state][action]
+        
+        random_value = random.random()
+        action = None
+        
+        if random_value > self.exploration_rate:
+            if player == 'O':
+                action = self.chooseAction(self.current_state, self.q_table_player_O)
+                current_q_value = self.q_table_player_O[self.current_state][action]
+            else:
+                action = self.chooseAction(self.current_state, self.q_table_player_X)  
+                current_q_value = self.q_table_player_X[self.current_state][action]
         else:
-            action = self.chooseAction(self.current_state, self.q_table_player_X)  
-            current_q_value = self.q_table_player_X[self.current_state][action]
-            
+            action = random.randint(0,8)
+            while self.board[action//3][action%3] != '-':
+                action = random.randint(0,8)
+            if player == 'O':
+                current_q_value = self.q_table_player_O[self.current_state][action]
+            else:
+                current_q_value = self.q_table_player_X[self.current_state][action]
+        
+        self.update_exploration_rate()
         self.board[action//3][action%3] = player
         next_q_state = self.convert_to_state()
         
