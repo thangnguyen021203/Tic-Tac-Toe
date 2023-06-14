@@ -1,5 +1,6 @@
 import numpy as np
 import random
+import os
 
 class TicTacToe:
     def __init__(self):
@@ -7,25 +8,49 @@ class TicTacToe:
         self.current_state = None
         self.c_learning_rate = 0.1
         self.c_discount_value = 0.9
+        self.exploration_rate =  0.3
         self.computer = None
         self.computer_q_table = None
         self.max_position_to_choose = None
         self.max_q_value_to_choose = None
         self.q_table_player_O = None
         self.q_table_player_X = None
-        self.exploration_rate =  1
+        self.previous_action = None
+        self.previous_q_value = None
+        self.previous_state = None
+        self.reward_X = 0
+        self.reward_O = 0
+        self.c_episodes = 1000000
+
+    def save_file(self):
+        np.save("q_table_player_O.npy", self.q_table_player_O)
+        np.save("q_table_player_X.npy", self.q_table_player_X)
+    
+    def load_file(self):
+        self.q_table_player_X = np.load("q_table_player_X.npy", allow_pickle= True)
+        self.q_table_player_O = np.load("q_table_player_O.npy", allow_pickle= True)
+    
+    def have_file(self):
+        if os.path.exists("./q_table_player_X") and os.path.exists("./q_table_player_O"):
+            return True
+        return False
     
     def update_exploration_rate(self):
-        if self.exploration_rate >= 0.3:
-            self.exploration_rate *= 0.98
+        if self.exploration_rate > 0.3:
+            self.exploration_rate *= 0.9
     
     def make_environment(self):
         self.board = np.array([['-','-','-'],
                               ['-','-','-'],
                               ['-','-','-']], dtype = np.str0)
-        self.q_table_player_X = np.random.uniform(low = 0, high = 2, size = [3**9,9])
-        self.q_table_player_O = np.random.uniform(low = 0, high = 2, size = [3**9,9])
         self.current_state = 19682 #Theo công thức convert, đây là trạng thái bảng rỗng
+        
+        if  not self.have_file():
+            self.q_table_player_X = np.random.uniform(low = 0, high = 1, size = [3**9,9])
+            self.q_table_player_O = np.random.uniform(low = 0, high = 1, size = [3**9,9])
+        else:
+            self.load_file()
+        
         
     def convert_to_state(self):
         num = 0
@@ -47,7 +72,14 @@ class TicTacToe:
                               ['-','-','-'],
                               ['-','-','-']], dtype = np.str0)
         self.current_state = self.convert_to_state() #Trạng thái bảng rỗng
-    
+        self.previous_action = None
+        self.previous_q_value = None
+        self.previous_state = None
+        self.reward_O = 0
+        self.reward_X = 0
+        self.q_table_player_O = None
+        self.q_table_player_X = None
+        
     def is_winner(self, player):
         #Check row
         for i in range (3):
@@ -99,17 +131,23 @@ class TicTacToe:
     
     def get_reward_player_X(self):
         if self.is_winner('X'):
-            return 1
-        return 0
+            self.reward_X = 1
+            self.reward_O = -1
+        else:
+            self.reward_X = 0
+            self.reward_O = 0
     
     def get_reward_player_O(self):
         if self.is_winner('O'):
-            return 1
-        return 0
+            self.reward_X = 1
+            self.reward_O = -1
+        else:
+            self.reward_X = 0
+            self.reward_O = 0
     
-    def get_reward(self, reward_X, reward_O):
-        reward_X = self.get_reward_player_X()
-        reward_O = self.get_reward_player_O()
+    def get_reward(self):
+        self.get_reward_player_X()
+        self.get_reward_player_O()
         
     def swap_player(self, player):
         return 'X' if player == 'O' else 'O'
@@ -152,23 +190,40 @@ class TicTacToe:
         self.board[action//3][action%3] = player
         next_q_state = self.convert_to_state()
         
-        reward_X = 0
-        reward_O = 0
-        self.get_reward(reward_X,reward_O)
+        self.reward_X = 0
+        self.reward_O = 0
+        self.get_reward()
         if player == 'O':
-            new_q_value = (1-self.c_learning_rate)*current_q_value + self.c_learning_rate*(reward_O + self.c_discount_value*np.max(self.q_table_player_O[next_q_state]))
-            self.q_table_player_O[self.current_state] = new_q_value
+            new_q_value = (1-self.c_learning_rate)*current_q_value + self.c_learning_rate*(self.reward_O + self.c_discount_value*np.max(self.q_table_player_O[next_q_state]))
+            
+            #if self.previous_action != None or self.previous_q_value != None or self.previous_state != None:
+            if self.reward_O == 1:
+                new_q_value = (1-self.c_learning_rate)*self.previous_q_value + self.c_learning_rate*(self.reward_X + self.c_discount_value*np.max(self.q_table_player_X[self.current_state]))
+                self.q_table_player_X[self.previous_state][self.previous_action] = new_q_value
+            
+            
+            self.q_table_player_O[self.current_state][action] = new_q_value
+            self.previous_state = self.current_state
             self.current_state = next_q_state
         else:
-            new_q_value = (1-self.c_learning_rate)*current_q_value + self.c_learning_rate*(reward_X + self.c_discount_value*np.max(self.q_table_player_X[next_q_state]))
-            self.q_table_player_X[self.current_state] = new_q_value
+            new_q_value = (1-self.c_learning_rate)*current_q_value + self.c_learning_rate*(self.reward_X + self.c_discount_value*np.max(self.q_table_player_X[next_q_state]))
+            
+            #if self.previous_action != None or self.previous_q_value != None or self.previous_state != None:
+            if self.reward_X == 1:
+                new_q_value = (1-self.c_learning_rate)*self.previous_q_value + self.c_learning_rate*(self.reward_O + self.c_discount_value*np.max(self.q_table_player_O[self.current_state]))
+                self.q_table_player_O[self.previous_state][self.previous_action] = new_q_value
+            
+            self.q_table_player_X[self.current_state][action] = new_q_value
+            self.previous_state = self.current_state
             self.current_state = next_q_state
+            
+            self.previous_q_value = current_q_value
+            self.previous_action = action
+            
 
-    def start(self):
-        self.make_environment()
-        
+    def train(self):
         player = 'X'
-        episodes = 200000
+        episodes = self.c_episodes
         
         for ep in range(episodes):
             player = 'X'
@@ -177,12 +232,16 @@ class TicTacToe:
             while True:
                 self.play(player)
                 if self.is_winner('X') or self.is_winner('O') or self.is_draw():
+                    self.save_file()
                     self.reset()
+                    self.load_file()
                     break
                 player = self.swap_player(player)
 
+
     def play_vs_human(self):
         self.reset()
+        self.load_file()
         human = input("Choose your turn X/O: ")
         if (human == 'X'):
             self.computer = 'O'
@@ -218,5 +277,6 @@ class TicTacToe:
             turn = self.swap_player(turn)
         
 boardgame = TicTacToe()
-boardgame.start()
+boardgame.make_environment()
+#boardgame.train()
 boardgame.play_vs_human()
