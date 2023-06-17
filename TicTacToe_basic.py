@@ -52,12 +52,11 @@ class TicTacToe:
     
     #check if draw
     def is_draw(self):
-        draw = True
-        for i in self.board:
-            if i != '-':
-                draw = False
-        return draw
-    
+        for i in range(3):
+            for j in range(3):
+                if self.board[i][j] == '-':
+                    return False
+        return True
     #Change the Turn 
     def swap_player(self, player):
         return 'X' if player == 'O' else 'O'
